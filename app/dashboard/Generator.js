@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
@@ -21,6 +22,7 @@ function CopyButton({ text }) {
 }
 
 export default function Generator() {
+  const router = useRouter();
   const [product, setProduct] = useState('');
   const [platform, setPlatform] = useState('Etsy');
   const [loading, setLoading] = useState(false);
@@ -41,6 +43,7 @@ export default function Generator() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Something went wrong.');
       setResult(data);
+      router.refresh(); // updates the "listings used" count
     } catch (err) {
       setError(err.message);
     } finally {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/session';
+import { getUsage, recordGeneration, LIMITS } from '@/lib/usage';
 
 const RULES = {
   Etsy: { titleMax: 140, tagMax: 20, tagCount: 13 },
@@ -48,6 +49,22 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Keep the product description under 1,500 characters.' }, { status: 400 });
   }
 
+  // Monthly limit: 3 listings on Free, 100 on Pro.
+  let usage;
+  try {
+    usage = await getUsage(session.id);
+  } catch (err) {
+    console.error('usage lookup failed', err);
+    return NextResponse.json({ error: 'Could not check your plan. Try again.' }, { status: 500 });
+  }
+  if (usage.used >= usage.limit) {
+    const error =
+      usage.plan === 'pro'
+        ? `You have used all ${usage.limit} listings for this month.`
+        : `You have used your ${usage.limit} free listings this month. Upgrade to Pro for up to ${LIMITS.pro} a month.`;
+    return NextResponse.json({ error }, { status: 402 });
+  }
+
   const system = [
     `You write search-optimized product listings for ${platform} sellers.`,
     'Respond with ONLY a JSON object, no markdown and no extra text, in this shape:',
@@ -56,6 +73,7 @@ export async function POST(request) {
     `Give exactly ${rules.tagCount} tags, each at most ${rules.tagMax} characters, lowercase, no duplicates, mixing specific and broader phrases buyers type.`,
     'The description is plain text, 120 to 200 words, readable by a shopper first and a search engine second.',
     'Only use facts present in the seller\'s product details. Do not invent materials, sizes, or claims.',
+    'If the details are thin, still return the JSON using only what is given, with broader tags. Never reply with questions or plain text.',
   ].join('\n');
 
   try {
@@ -81,7 +99,16 @@ export async function POST(request) {
 
     const data = await res.json();
     const text = (data.content || []).map((b) => (b.type === 'text' ? b.text : '')).join('');
-    const parsed = parseModelJson(text);
+
+    let parsed;
+    try {
+      parsed = parseModelJson(text);
+    } catch {
+      return NextResponse.json(
+        { error: 'Add a bit more detail about your product (material, size, style, who it is for) and try again.' },
+        { status: 422 }
+      );
+    }
 
     const title = clipTitle(String(parsed.title || '').trim(), rules.titleMax);
     const seen = new Set();
@@ -92,6 +119,8 @@ export async function POST(request) {
     const description = String(parsed.description || '').trim();
 
     if (!title || !description) throw new Error('Incomplete model output');
+
+    await recordGeneration(session.id);
     return NextResponse.json({ title, tags, description });
   } catch (err) {
     console.error('generate failed', err);

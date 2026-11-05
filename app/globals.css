@@ -334,3 +334,8 @@ textarea { resize: vertical; }
   .benefits { grid-template-columns: repeat(3, 1fr); gap: 2.5rem; }
   .dash-grid { grid-template-columns: 1fr 1.2fr; }
 }
+
+/* Plan and billing */
+.plan-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 1.5rem; }
+.plan-bar p { margin: 0; }
+.notice { background: #e7f6ec; border: 1px solid #a7d9b6; border-radius: 0.5rem; padding: 0.7rem 0.9rem; margin: 0 0 1.5rem; font-weight: 500; }
